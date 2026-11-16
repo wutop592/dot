@@ -105,7 +105,7 @@ dot.addEventListener('pointerup',()=>{if(moved){try{localStorage.setItem('od_pos
 $('#x').onclick=()=>toggle(false);
 addEventListener('resize',place);
 const parse=t=>{let n=0;t.replace(/^\ufeff/,'').split(/\r?\n/).forEach(l=>{const m=l.match(/^\s*"?([A-Za-z][A-Za-z'\- ]*?)"?\s*[,\t]\s*"?(.+?)"?\s*$/);if(m){D[m[1].toLowerCase()]=m[2];n++}});return n};
-try{fetch('dict.csv').then(r=>r.ok?r.text():'').then(t=>{if(t){parse(t);cnt()}else{out.textContent='找不到 dict.csv（需與 index.html 放在同一資料夾，並用網址開啟）'}}).catch(()=>{})}catch(e){}
+try{Promise.all([1,2,3,4,5].map(i=>fetch('dict'+i+'.csv').then(r=>r.ok?r.text():'').catch(()=>''))).then(ts=>{let n=0;ts.forEach(t=>{if(t){parse(t);n++}});cnt();if(!n)out.textContent='找不到 dict1.csv（需與 index.html 放在同一資料夾，並用網址開啟）'})}catch(e){}
 cnt();place();
 const hn=document.createElement('div');hn.textContent='點小點開始查字 ➜';hn.style.cssText='position:fixed;z-index:3;font-size:14px;color:var(--mut);background:var(--bg);padding:5px 10px;border-radius:8px;transition:opacity 1s;pointer-events:none;white-space:nowrap';hn.style.top=(pos.y+8)+'px';hn.style.left=Math.max(8,pos.x-150)+'px';document.body.appendChild(hn);setTimeout(()=>{hn.style.opacity=0},8000);
 </script></body></html>
