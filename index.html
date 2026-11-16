@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>浮點查字</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+:root{--pg:#f4f5f7;--bg:#fffffff2;--fg:#16181d;--mut:#6b7280;--ac:#0a84ff;--bd:#d0d5dd;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--pg:#0f1115;--bg:#1c1f26f2;--fg:#eef0f4;--mut:#9aa3b2;--ac:#4aa3ff;--bd:#3a4050;color-scheme:dark}}
+:root[data-theme="dark"]{--pg:#0f1115;--bg:#1c1f26f2;--fg:#eef0f4;--mut:#9aa3b2;--ac:#4aa3ff;--bd:#3a4050;color-scheme:dark}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--pg);color:var(--fg);font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif}
+#dot{position:fixed;width:44px;height:44px;touch-action:none;display:flex;align-items:center;justify-content:center;z-index:5;-webkit-tap-highlight-color:transparent}
+#dot::after{content:"";width:14px;height:14px;border-radius:50%;background:var(--ac);opacity:.28;transition:.2s}
+#dot:active::after,#dot.on::after{opacity:.9;transform:scale(1.15)}
+#panel{position:fixed;z-index:4;background:var(--bg);border:1px solid var(--bd);border-radius:16px;padding:10px;box-shadow:0 8px 30px #0003;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);display:none;box-sizing:border-box}
+#panel.open{display:block}
+.row{display:flex;gap:6px}
+input{flex:1;min-width:0;font-size:18px;padding:9px 12px;border:1px solid var(--bd);border-radius:10px;background:transparent;color:var(--fg);outline:none}
+input:focus{border-color:var(--ac)}
+button{font-size:18px;border:0;border-radius:10px;background:transparent;color:var(--ac);padding:0 10px}
+#out{margin-top:8px;font-size:16px;line-height:1.5;white-space:pre-wrap;max-height:40vh;overflow:auto;min-height:1.5em}
+#out .m{color:var(--mut);font-size:13px}
+#hist{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{font-size:14px;padding:4px 10px;border:1px solid var(--bd);border-radius:999px;color:var(--fg)}
+#bar{display:flex;justify-content:space-between;margin-top:6px}
+#bar button{font-size:13px;padding:4px 6px;color:var(--mut)}
+</style></head><body>
+<div id="dot" title="點一下查字"></div>
+<div id="panel">
+  <div class="row"><input id="q" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="輸入英文…按 Enter" enterkeyhint="search"><button id="spk" title="發音">🔊</button><button id="x" title="收合">✕</button></div>
+  <div id="out"><span class="m">輸入英文單字或片語，按 Enter 查詢並發音。拖曳小點可移動位置。</span></div>
+  <div id="hist"></div>
+  <div id="bar"><button id="exp">⬇ 匯出生字本</button><button id="clr">清除紀錄</button></div>
+</div>
+<script>
+const $=s=>document.querySelector(s),dot=$('#dot'),panel=$('#panel'),q=$('#q'),out=$('#out');
+let pos={x:innerWidth-60,y:110},ok=false,sm=null,ctl=null,tm=null,cache={};
+try{const p=JSON.parse(localStorage.getItem('fd_pos'));if(p&&isFinite(p.x))pos=p}catch(e){}
+try{cache=JSON.parse(localStorage.getItem('fd_c'))||{}}catch(e){}
+function place(){
+  pos.x=Math.min(Math.max(0,pos.x),innerWidth-44);pos.y=Math.min(Math.max(0,pos.y),innerHeight-44);
+  dot.style.left=pos.x+'px';dot.style.top=pos.y+'px';
+  const w=Math.min(330,innerWidth-16);let l=Math.min(Math.max(8,pos.x+22-w/2),innerWidth-w-8);
+  panel.style.width=w+'px';panel.style.left=l+'px';
+  let t=pos.y+48;if(t+panel.offsetHeight>innerHeight-8)t=Math.max(8,pos.y-panel.offsetHeight-4);
+  panel.style.top=t+'px';
+}
+function toggle(o){const open=o===undefined?!panel.classList.contains('open'):o;panel.classList.toggle('open',open);dot.classList.toggle('on',open);place();if(open)q.focus()}
+let sx,sy,ox,oy,moved=false;
+dot.addEventListener('pointerdown',e=>{dot.setPointerCapture(e.pointerId);sx=e.clientX;sy=e.clientY;ox=pos.x;oy=pos.y;moved=false});
+dot.addEventListener('pointermove',e=>{if(!dot.hasPointerCapture(e.pointerId))return;
+  if(Math.abs(e.clientX-sx)+Math.abs(e.clientY-sy)>8)moved=true;
+  if(moved){pos.x=ox+e.clientX-sx;pos.y=oy+e.clientY-sy;place()}});
+dot.addEventListener('pointerup',e=>{if(moved){try{localStorage.setItem('fd_pos',JSON.stringify(pos))}catch(_){}}else toggle()});
+$('#x').onclick=()=>toggle(false);
+addEventListener('resize',place);
+function speak(w){
+  if(!w||!('speechSynthesis' in window))return;
+  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(w);u.lang='en-US';u.rate=.9;
+    const v=speechSynthesis.getVoices().find(v=>v.lang==='en-US'&&/Samantha|Ava|Allison|Google/i.test(v.name))||speechSynthesis.getVoices().find(v=>v.lang==='en-US');
+    if(v)u.voice=v;speechSynthesis.speak(u)}catch(e){}
+}
+function show(t){out.textContent=t;place()}
+async function lookup(w,say){
+  w=w.trim();if(!w)return;
+  if(say)speak(w);
+  const k=w.toLowerCase();
+  if(cache[k]){show(cache[k]);addH(w);return}
+  if(!sm){try{if(window.claude)sm=await claude.use('sample')}catch(e){}}
+  if(!sm){show('此環境無法查詢（需在 claude.ai 開啟並允許）。');return}
+  if(ctl)ctl.abort();ctl=new AbortController();show('查詢中…');
+  const p='你是英漢詞典。請把下列英文翻成繁體中文。格式嚴格如下，不要其他文字：\n第一行：音標 IPA\n接著最多3行：詞性縮寫. 中文意思\n最後一行：一個簡短英文例句 ／ 中文翻譯\n\n英文：'+w;
+  try{
+    const r=await sm(p,{signal:ctl.signal,modelTier:'quick',cache:false,onText:({text})=>{if(q.value.trim().toLowerCase()===k||true)show(text)}});
+    ok=true;cache[k]=r.text;
+    const ks=Object.keys(cache);if(ks.length>200)delete cache[ks[0]];
+    try{localStorage.setItem('fd_c',JSON.stringify(cache))}catch(e){}
+    show(r.text);addH(w);
+  }catch(e){if(e&&e.code==='not_granted')show('需允許「詢問 Claude」權限才能查詢。');else if(e&&e.code==='rate_limited')show('查詢太頻繁，請稍後再試。');else if(!(e&&e.name==='AbortError'))show('查詢失敗，請再按 Enter。')}
+}
+q.addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(tm);lookup(q.value,true);q.select()}});
+q.addEventListener('input',()=>{clearTimeout(tm);if(ok&&q.value.trim().length>1)tm=setTimeout(()=>lookup(q.value,false),800)});
+$('#spk').onclick=()=>speak(q.value);
+let hist=[];try{hist=JSON.parse(localStorage.getItem('fd_h'))||[]}catch(e){}
+function drawH(){const h=$('#hist');h.textContent='';hist.slice(0,12).forEach(w=>{const b=document.createElement('button');b.className='chip';b.textContent=w;b.onclick=()=>{q.value=w;lookup(w,true)};h.appendChild(b)});place()}
+function addH(w){const k=w.trim().toLowerCase();hist=[k,...hist.filter(x=>x!==k)].slice(0,300);try{localStorage.setItem('fd_h',JSON.stringify(hist))}catch(e){}drawH()}
+$('#exp').onclick=async()=>{if(!hist.length){show('還沒有生字可匯出。');return}let d=null;try{if(window.claude)d=await claude.use('downloads')}catch(e){}if(!d){show('此環境無法匯出。');return}
+const esc=s=>'"'+String(s).replace(/"/g,'""')+'"';
+const csv='\ufeff單字,內容\n'+hist.map(w=>esc(w)+','+esc(cache[w]||'')).join('\n');
+try{await d.save({filename:'wordbook.csv',data:csv})}catch(e){if(!e||e.code!=='declined')show('匯出失敗。')}};
+$('#clr').onclick=()=>{hist=[];try{localStorage.removeItem('fd_h')}catch(e){}drawH()};
+drawH();
+place();
+</script></body></html>
